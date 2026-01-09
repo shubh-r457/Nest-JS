@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Order } from './entities/order.entity';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Order, OrderDocument } from './entities/order.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { ProductsService } from '../products/products.service';
@@ -10,8 +10,8 @@ import { UsersService } from '../users/users.service';
 @Injectable()
 export class OrdersService {
   constructor(
-    @InjectRepository(Order)
-    private readonly orderRepository: Repository<Order>,
+    @InjectModel(Order.name)
+    private readonly orderModel: Model<OrderDocument>,
     private readonly productsService: ProductsService,
     private readonly usersService: UsersService,
   ) {}
@@ -33,46 +33,46 @@ export class OrdersService {
     const totalPrice = product.price * createOrderDto.quantity;
 
     // Create order
-    const order = this.orderRepository.create({
+    const order = new this.orderModel({
       ...createOrderDto,
       totalPrice,
       status: 'pending',
     });
 
-    const savedOrder = await this.orderRepository.save(order);
+    const savedOrder = await order.save();
 
     // Update product stock
-    await this.productsService.updateStock(product.id, -createOrderDto.quantity);
+    await this.productsService.updateStock(createOrderDto.productId, -createOrderDto.quantity);
 
     return savedOrder;
   }
 
   async findAll(): Promise<Order[]> {
-    return await this.orderRepository.find({
-      relations: ['user', 'product'],
-    });
+    return await this.orderModel.find()
+      .populate('userId', 'email firstName lastName')
+      .populate('productId', 'name price')
+      .exec();
   }
 
-  async findByUser(userId: number): Promise<Order[]> {
-    return await this.orderRepository.find({
-      where: { userId },
-      relations: ['product'],
-      order: { createdAt: 'DESC' },
-    });
+  async findByUser(userId: string): Promise<Order[]> {
+    return await this.orderModel.find({ userId })
+      .populate('productId', 'name price')
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
   async findByStatus(status: string): Promise<Order[]> {
-    return await this.orderRepository.find({
-      where: { status },
-      relations: ['user', 'product'],
-    });
+    return await this.orderModel.find({ status })
+      .populate('userId', 'email firstName lastName')
+      .populate('productId', 'name price')
+      .exec();
   }
 
-  async findOne(id: number): Promise<Order> {
-    const order = await this.orderRepository.findOne({
-      where: { id },
-      relations: ['user', 'product'],
-    });
+  async findOne(id: string): Promise<Order> {
+    const order = await this.orderModel.findById(id)
+      .populate('userId', 'email firstName lastName')
+      .populate('productId', 'name price')
+      .exec();
 
     if (!order) {
       throw new NotFoundException(`Order with ID ${id} not found`);
@@ -81,13 +81,24 @@ export class OrdersService {
     return order;
   }
 
-  async updateStatus(id: number, updateStatusDto: UpdateOrderStatusDto): Promise<Order> {
-    const order = await this.findOne(id);
-    order.status = updateStatusDto.status;
-    return await this.orderRepository.save(order);
+  async updateStatus(id: string, updateStatusDto: UpdateOrderStatusDto): Promise<Order> {
+    const order = await this.orderModel.findByIdAndUpdate(
+      id,
+      { $set: { status: updateStatusDto.status } },
+      { new: true, runValidators: true }
+    )
+      .populate('userId', 'email firstName lastName')
+      .populate('productId', 'name price')
+      .exec();
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${id} not found`);
+    }
+
+    return order;
   }
 
-  async cancel(id: number): Promise<Order> {
+  async cancel(id: string): Promise<Order> {
     const order = await this.findOne(id);
 
     if (order.status === 'delivered') {
@@ -99,9 +110,17 @@ export class OrdersService {
     }
 
     // Restore product stock
-    await this.productsService.updateStock(order.productId, order.quantity);
+    await this.productsService.updateStock(order.productId.toString(), order.quantity);
 
-    order.status = 'cancelled';
-    return await this.orderRepository.save(order);
+    const updatedOrder = await this.orderModel.findByIdAndUpdate(
+      id,
+      { $set: { status: 'cancelled' } },
+      { new: true }
+    )
+      .populate('userId', 'email firstName lastName')
+      .populate('productId', 'name price')
+      .exec();
+
+    return updatedOrder;
   }
 }

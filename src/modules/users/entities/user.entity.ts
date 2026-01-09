@@ -1,64 +1,60 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
 
 /**
- * TOPIC: Database Integration with TypeORM
+ * TOPIC: Database Integration with MongoDB & Mongoose
  * 
- * Entities are TypeORM models that map to database tables
+ * Schemas are Mongoose models that map to MongoDB collections
  * Decorators define the schema
  */
 
-@Entity('users') // Table name
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
+export type UserDocument = User & Document;
 
-  @Column({ unique: true })
+@Schema({ timestamps: true, collection: 'users' })
+export class User {
+  @Prop({ required: true, unique: true })
   email: string;
 
-  @Column()
+  @Prop({ required: true })
   password: string;
 
-  @Column()
+  @Prop({ required: true })
   firstName: string;
 
-  @Column()
+  @Prop({ required: true })
   lastName: string;
 
-  @Column({ type: 'int' })
+  @Prop({ required: true, type: Number })
   age: number;
 
-  @Column({ default: 'user' })
+  @Prop({ default: 'user' })
   role: string;
 
-  @Column({ default: true })
+  @Prop({ default: true })
   isActive: boolean;
 
-  @Column({ default: false })
+  @Prop({ default: false })
   emailVerified: boolean;
 
-  @Column({ default: false })
+  @Prop({ default: false })
   isDeleted: boolean;
 
-  @Column({ type: 'simple-json', nullable: true })
-  address: {
+  @Prop({ type: Object, required: false })
+  address?: {
     street: string;
     city: string;
     country: string;
     zipCode?: string;
   };
 
-  @Column({ type: 'simple-json', nullable: true })
-  hobbies: string[];
+  @Prop({ type: [String], required: false })
+  hobbies?: string[];
 
-  @Column({ nullable: true })
-  phoneNumber: string;
+  @Prop({ required: false })
+  phoneNumber?: string;
 
-  @Column({ type: 'datetime', nullable: true })
-  birthDate: Date;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @Prop({ type: Date, required: false })
+  birthDate?: Date;
 }
+
+export const UserSchema = SchemaFactory.createForClass(User);

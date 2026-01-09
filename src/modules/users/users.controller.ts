@@ -21,6 +21,7 @@ import { Request, Response } from 'express';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ParseMongoIdPipe } from '../../common/pipes/parse-mongo-id.pipe';
 
 /**
  * TOPIC: Controllers, Routing, and Request Decorators
@@ -69,7 +70,7 @@ export class UsersController {
    * Demonstrates @Param decorator with validation pipe
    */
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseMongoIdPipe) id: string) {
     return this.usersService.findOne(id);
   }
 
@@ -78,7 +79,7 @@ export class UsersController {
    * Nested route with parameters
    */
   @Get(':id/profile')
-  getUserProfile(@Param('id', ParseIntPipe) id: number) {
+  getUserProfile(@Param('id', ParseMongoIdPipe) id: string) {
     return this.usersService.getUserProfile(id);
   }
 
@@ -126,7 +127,7 @@ export class UsersController {
    * Full update of a user (replaces entire resource)
    */
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
+  update(@Param('id', ParseMongoIdPipe) id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
 
@@ -135,7 +136,7 @@ export class UsersController {
    * Partial update of a user (updates only provided fields)
    */
   @Patch(':id')
-  partialUpdate(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
+  partialUpdate(@Param('id', ParseMongoIdPipe) id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
 
@@ -147,7 +148,7 @@ export class UsersController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id', ParseMongoIdPipe) id: string) {
     return this.usersService.remove(id);
   }
 

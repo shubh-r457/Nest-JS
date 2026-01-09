@@ -6,6 +6,7 @@ import {
   Min,
   ValidateNested,
   IsNotEmpty,
+  IsMongoId,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -28,15 +29,11 @@ class ShippingAddressDto {
 }
 
 export class CreateOrderDto {
-  @IsInt()
-  @Min(1)
-  @Type(() => Number)
-  userId: number;
+  @IsMongoId()
+  userId: string;
 
-  @IsInt()
-  @Min(1)
-  @Type(() => Number)
-  productId: number;
+  @IsMongoId()
+  productId: string;
 
   @IsInt()
   @Min(1)

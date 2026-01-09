@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -13,13 +13,14 @@ import { OrdersModule } from './modules/orders/orders.module';
       envFilePath: '.env',
     }),
 
-    // Database Module - TypeORM configuration
-    TypeOrmModule.forRoot({
-      type: 'sqlite',
-      database: 'learning.db',
-      entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true, // Auto-sync schema (don't use in production!)
-      logging: true, // Log SQL queries
+    // Database Module - MongoDB configuration
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGODB_URI'),
+        dbName: configService.get<string>('DATABASE_NAME'),
+      }),
+      inject: [ConfigService],
     }),
 
     // Feature Modules

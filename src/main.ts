@@ -44,7 +44,7 @@ async function bootstrap() {
 ║   ✓ Dependency Injection                                      ║
 ║   ✓ DTOs & Validation                                         ║
 ║   ✓ Exception Filters                                         ║
-║   ✓ Database Integration (TypeORM)                            ║
+║   ✓ Database Integration (MongoDB + Mongoose)                 ║
 ║                                                                ║
 ╚════════════════════════════════════════════════════════════════╝
   `);

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { MongooseModule } from '@nestjs/mongoose';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { User } from './entities/user.entity';
+import { User, UserSchema } from './entities/user.entity';
 import { LoggerService } from '../../common/services/logger.service';
 import { CacheService } from '../../common/services/cache.service';
 
@@ -15,8 +15,8 @@ import { CacheService } from '../../common/services/cache.service';
 
 @Module({
   imports: [
-    // Import TypeORM repository for User entity
-    TypeOrmModule.forFeature([User]),
+    // Import Mongoose schema for User entity
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
   ],
   controllers: [UsersController], // Controllers for this module
   providers: [

@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { MongooseModule } from '@nestjs/mongoose';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
-import { Order } from './entities/order.entity';
+import { Order, OrderSchema } from './entities/order.entity';
 import { ProductsModule } from '../products/products.module';
 import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order]),
+    MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }]),
     ProductsModule, // Import to access ProductsService
     UsersModule, // Import to access UsersService
   ],

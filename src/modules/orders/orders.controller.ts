@@ -14,6 +14,7 @@ import {
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { ParseMongoIdPipe } from '../../common/pipes/parse-mongo-id.pipe';
 
 @Controller('orders')
 export class OrdersController {
@@ -26,7 +27,7 @@ export class OrdersController {
   }
 
   @Get()
-  findAll(@Query('status') status?: string, @Query('userId', ParseIntPipe) userId?: number) {
+  findAll(@Query('status') status?: string, @Query('userId', ParseMongoIdPipe) userId?: string) {
     if (status) {
       return this.ordersService.findByStatus(status);
     }
@@ -37,20 +38,20 @@ export class OrdersController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseMongoIdPipe) id: string) {
     return this.ordersService.findOne(id);
   }
 
   @Patch(':id/status')
   updateStatus(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseMongoIdPipe) id: string,
     @Body() updateStatusDto: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateStatus(id, updateStatusDto);
   }
 
   @Delete(':id')
-  cancel(@Param('id', ParseIntPipe) id: number) {
+  cancel(@Param('id', ParseMongoIdPipe) id: string) {
     return this.ordersService.cancel(id);
   }
 }

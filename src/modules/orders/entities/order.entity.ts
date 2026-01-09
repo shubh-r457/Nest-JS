@@ -1,58 +1,35 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
-import { User } from '../../users/entities/user.entity';
-import { Product } from '../../products/entities/product.entity';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-@Entity('orders')
+export type OrderDocument = Order & Document;
+
+@Schema({ timestamps: true, collection: 'orders' })
 export class Order {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
+  userId: Types.ObjectId;
 
-  @Column()
-  userId: number;
+  @Prop({ required: true, type: Types.ObjectId, ref: 'Product' })
+  productId: Types.ObjectId;
 
-  @Column()
-  productId: number;
-
-  @Column({ type: 'int' })
+  @Prop({ required: true, type: Number })
   quantity: number;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Prop({ required: true, type: Number })
   totalPrice: number;
 
-  @Column({ default: 'pending' })
+  @Prop({ default: 'pending' })
   status: string; // pending, confirmed, shipped, delivered, cancelled
 
-  @Column({ type: 'text', nullable: true })
-  notes: string;
+  @Prop({ required: false })
+  notes?: string;
 
-  @Column({ type: 'simple-json', nullable: true })
-  shippingAddress: {
+  @Prop({ type: Object, required: false })
+  shippingAddress?: {
     street: string;
     city: string;
     country: string;
     zipCode: string;
   };
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  // Relations (demonstrating TypeORM relationships)
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'userId' })
-  user: User;
-
-  @ManyToOne(() => Product)
-  @JoinColumn({ name: 'productId' })
-  product: Product;
 }
+
+export const OrderSchema = SchemaFactory.createForClass(Order);

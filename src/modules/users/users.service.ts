@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Scope } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, Between } from 'typeorm';
-import { User } from './entities/user.entity';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User, UserDocument } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { LoggerService } from '../../common/services/logger.service';
@@ -12,7 +12,7 @@ import { CacheService } from '../../common/services/cache.service';
  * 
  * This service demonstrates:
  * - Constructor-based dependency injection
- * - Repository pattern with TypeORM
+ * - Repository pattern with Mongoose
  * - Service as a provider
  * - Custom providers (LoggerService, CacheService)
  * - Scoped providers (default is SINGLETON)
@@ -26,9 +26,9 @@ export class UsersService {
    * NestJS automatically resolves and injects these dependencies
    */
   constructor(
-    // Inject TypeORM repository for User entity
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    // Inject Mongoose model for User entity
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
 
     // Inject custom service providers
     private readonly logger: LoggerService,
@@ -43,36 +43,24 @@ export class UsersService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     this.logger.log('Creating new user', 'UsersService');
 
-    // Create user entity from DTO
-    const user = this.userRepository.create({
-      ...createUserDto,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    // Create user document from DTO
+    const user = new this.userModel(createUserDto);
 
     // Save to database
-    const savedUser = await this.userRepository.save(user);
+    const savedUser = await user.save();
 
     // Cache the user
-    await this.cache.set(`user:${savedUser.id}`, savedUser, 3600);
+    await this.cache.set(`user:${savedUser._id}`, savedUser, 3600);
 
-    this.logger.log(`User created with ID: ${savedUser.id}`, 'UsersService');
+    this.logger.log(`User created with ID: ${savedUser._id}`, 'UsersService');
     return savedUser;
   }
 
   /**
    * Create multiple users in batch
    */
-  async createBatch(createUserDtos: CreateUserDto[]): Promise<User[]> {
-    const users = createUserDtos.map((dto) =>
-      this.userRepository.create({
-        ...dto,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
-    );
-
-    return await this.userRepository.save(users);
+  async createBatch(createUserDtos: CreateUserDto[]): Promise<any[]> {
+    return await this.userModel.insertMany(createUserDtos);
   }
 
   /**
@@ -86,20 +74,20 @@ export class UsersService {
     const { page, limit, search } = options;
     const skip = (page - 1) * limit;
 
-    const whereCondition = search
-      ? [
-          { firstName: Like(`%${search}%`) },
-          { lastName: Like(`%${search}%`) },
-          { email: Like(`%${search}%`) },
-        ]
+    const searchFilter = search
+      ? {
+          $or: [
+            { firstName: { $regex: search, $options: 'i' } },
+            { lastName: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
+          ],
+        }
       : {};
 
-    const [data, total] = await this.userRepository.findAndCount({
-      where: whereCondition,
-      skip,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
+    const [data, total] = await Promise.all([
+      this.userModel.find(searchFilter).skip(skip).limit(limit).sort({ createdAt: -1 }).exec(),
+      this.userModel.countDocuments(searchFilter).exec(),
+    ]);
 
     return { data, total, page, limit };
   }
@@ -108,15 +96,13 @@ export class UsersService {
    * Find active users
    */
   async findActive(): Promise<User[]> {
-    return await this.userRepository.find({
-      where: { isActive: true },
-    });
+    return await this.userModel.find({ isActive: true }).exec();
   }
 
   /**
    * Find one user by ID
    */
-  async findOne(id: number): Promise<User> {
+  async findOne(id: string): Promise<User> {
     // Check cache first
     const cached = await this.cache.get<User>(`user:${id}`);
     if (cached) {
@@ -125,7 +111,7 @@ export class UsersService {
     }
 
     // Query database
-    const user = await this.userRepository.findOne({ where: { id } });
+    const user = await this.userModel.findById(id).exec();
 
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
@@ -140,13 +126,20 @@ export class UsersService {
   /**
    * Get user profile with additional data
    */
-  async getUserProfile(id: number): Promise<any> {
+  async getUserProfile(id: string): Promise<any> {
     const user = await this.findOne(id);
+    const userObj = user instanceof Object && '_id' in user ? user : user;
     
     return {
-      ...user,
-      fullName: `${user.firstName} ${user.lastName}`,
-      accountAge: this.calculateAccountAge(user.createdAt),
+      _id: userObj['_id'],
+      email: userObj['email'],
+      firstName: userObj['firstName'],
+      lastName: userObj['lastName'],
+      age: userObj['age'],
+      role: userObj['role'],
+      isActive: userObj['isActive'],
+      fullName: `${userObj['firstName']} ${userObj['lastName']}`,
+      accountAge: this.calculateAccountAge(userObj['createdAt']),
     };
   }
 
@@ -159,57 +152,61 @@ export class UsersService {
     minAge?: number;
     maxAge?: number;
   }): Promise<User[]> {
-    const queryBuilder = this.userRepository.createQueryBuilder('user');
+    const query: any = {};
 
     if (filters.name) {
-      queryBuilder.andWhere(
-        '(user.firstName LIKE :name OR user.lastName LIKE :name)',
-        { name: `%${filters.name}%` },
-      );
+      query.$or = [
+        { firstName: { $regex: filters.name, $options: 'i' } },
+        { lastName: { $regex: filters.name, $options: 'i' } },
+      ];
     }
 
     if (filters.email) {
-      queryBuilder.andWhere('user.email LIKE :email', { email: `%${filters.email}%` });
+      query.email = { $regex: filters.email, $options: 'i' };
     }
 
     if (filters.minAge !== undefined && filters.maxAge !== undefined) {
-      queryBuilder.andWhere('user.age BETWEEN :minAge AND :maxAge', {
-        minAge: filters.minAge,
-        maxAge: filters.maxAge,
-      });
+      query.age = { $gte: filters.minAge, $lte: filters.maxAge };
     }
 
-    return await queryBuilder.getMany();
+    return await this.userModel.find(query).exec();
   }
 
   /**
    * Update a user
    */
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-    const user = await this.findOne(id);
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      { $set: updateUserDto },
+      { new: true, runValidators: true }
+    ).exec();
 
-    // Merge updates
-    Object.assign(user, updateUserDto, { updatedAt: new Date() });
-
-    const updatedUser = await this.userRepository.save(user);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
 
     // Invalidate cache
     await this.cache.delete(`user:${id}`);
 
     this.logger.log(`User ${id} updated`, 'UsersService');
-    return updatedUser;
+    return user;
   }
 
   /**
    * Remove a user (soft delete)
    */
-  async remove(id: number): Promise<void> {
-    const user = await this.findOne(id);
-    
-    user.isDeleted = true;
-    user.updatedAt = new Date();
-    
-    await this.userRepository.save(user);
+  async remove(id: string): Promise<void> {
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      { $set: { isDeleted: true } },
+      { new: true }
+    ).exec();
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
     await this.cache.delete(`user:${id}`);
 
     this.logger.log(`User ${id} deleted`, 'UsersService');

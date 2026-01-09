@@ -28,12 +28,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     // Determine error message
-    let message = 'Internal server error';
+    let message: string | string[] = 'Internal server error';
     if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse();
       message =
         typeof exceptionResponse === 'object' && 'message' in exceptionResponse
-          ? exceptionResponse.message
+          ? (exceptionResponse.message as string | string[])
           : exception.message;
     } else if (exception instanceof Error) {
       message = exception.message;
